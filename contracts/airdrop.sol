@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.2;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 
 // MerkleDistributor for airdrop to BTFS staker
-contract Airdrop {
+contract MerkleDistributor {
     using SafeMath for uint256;
 
     bytes32 public merkleRoot;
@@ -26,11 +26,11 @@ contract Airdrop {
     // Record the total claim information of all period
     statistics  public totalClaimInfo;
 
-    event Claimed(uint256 epoch, uint256 index, address account, uint256 amount);
+    event Claimed(bytes32 merkleRootInput, uint256 index, address account, uint256 amount);
     event SetTotalAmount(bytes32 merkleRoot, uint256 amount);
 
     struct claimedOne {
-        uint256 lastEpoch;
+        bytes32 lastMerkleRoot;
         uint256 claimed;
     }
     // which address, last epoch and claimed
@@ -41,6 +41,12 @@ contract Airdrop {
         reviewAuthority = _reviewAuthority;
         owner = msg.sender;
     }
+
+    //    function init(address _proposalAuthority, address _reviewAuthority) public payable {
+    //        proposalAuthority = _proposalAuthority;
+    //        reviewAuthority = _reviewAuthority;
+    //        owner = msg.sender;
+    //    }
 
     // supply information
     receive() external payable {}
@@ -74,6 +80,16 @@ contract Airdrop {
         emit SetTotalAmount(merkleRoot, totalAmount);
     }
 
+    function getTotalClaimInfo() view external returns (uint256 total, uint256 claimed) {
+        total = totalClaimInfo.total;
+        claimed = totalClaimInfo.claimed;
+    }
+
+    function getUserClaimed() view external returns (uint256 userClaimed, bytes32 merkleRootRet) {
+        userClaimed = claimedMap[msg.sender].claimed;
+        merkleRootRet = merkleRoot;
+    }
+
     // Each week, the proposal authority calls to submit the merkle root for a new airdrop.
     function proposeMerkleRoot(bytes32 _merkleRoot) public {
         require(msg.sender == proposalAuthority);
@@ -96,37 +112,37 @@ contract Airdrop {
         delete pendingMerkleRoot;
     }
 
-    function isClaimed(uint256 epoch) public view returns (bool) {
-        if (claimedMap[msg.sender].lastEpoch == 0) {
+    function isClaimed(bytes32 merkleRootInput) public view returns (bool) {
+        if (claimedMap[msg.sender].lastMerkleRoot == 0) {
             return false;
         }
-        if (claimedMap[msg.sender].lastEpoch >= epoch) {
+        if (claimedMap[msg.sender].lastMerkleRoot == merkleRootInput) {
             return true;
         }
 
         return false;
     }
 
-    function _setClaimed(uint256 epoch, uint256 amount) private {
-        if (claimedMap[msg.sender].lastEpoch == 0) {
+    function _setClaimed(bytes32 merkleRootInput, uint256 amount) private {
+        if (claimedMap[msg.sender].lastMerkleRoot == 0) {
             claimedMap[msg.sender].claimed = amount;
-            claimedMap[msg.sender].lastEpoch = epoch;
+            claimedMap[msg.sender].lastMerkleRoot = merkleRootInput;
         } else {
             claimedMap[msg.sender].claimed += amount;
-            claimedMap[msg.sender].lastEpoch = epoch;
+            claimedMap[msg.sender].lastMerkleRoot = merkleRootInput;
         }
     }
 
-    function claim(uint256 epoch, uint256 index, uint256 amount, bytes32[] calldata merkleProof) external {
+    function claim(bytes32 merkleRootInput, uint256 index, uint256 amount, bytes32[] calldata merkleProof) external {
         require(0 < merkleProof.length, "MerkleDistributor: Invalid merkleProof");
-        require(!isClaimed(epoch), "MerkleDistributor: Drop already claimed.");
+        require(!isClaimed(merkleRootInput), "MerkleDistributor: Drop already claimed.");
 
         // Verify the merkle proof.
         bytes32 node = keccak256(abi.encodePacked(index, msg.sender, amount));
         require(verify(merkleProof, merkleRoot, node), "MerkleDistributor: Invalid proof.");
 
         // Mark it claimed and send the token.
-        _setClaimed(epoch, amount);
+        _setClaimed(merkleRootInput, amount);
 
         // Accumulate the total info
         totalClaimInfo.claimed = totalClaimInfo.claimed.add(amount);
@@ -134,7 +150,7 @@ contract Airdrop {
         // transfer airdrop(btt) to msg.sender
         payable(msg.sender).transfer(amount);
 
-        emit Claimed(epoch, index, msg.sender, amount);
+        emit Claimed(merkleRootInput, index, msg.sender, amount);
     }
 
     function verify(bytes32[] memory proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
