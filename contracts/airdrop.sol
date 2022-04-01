@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 
 // MerkleDistributor for airdrop to BTFS staker
-contract MerkleDistributor {
+contract Airdrop {
     using SafeMath for uint256;
 
     bytes32 public merkleRoot;
@@ -85,9 +85,9 @@ contract MerkleDistributor {
         claimed = totalClaimInfo.claimed;
     }
 
-    function getUserClaimed() view external returns (uint256 userClaimed, bytes32 merkleRootRet) {
+    function getUserClaimed() view external returns (uint256 userClaimed, bytes32 lastMerkleRoot) {
         userClaimed = claimedMap[msg.sender].claimed;
-        merkleRootRet = merkleRoot;
+        lastMerkleRoot = claimedMap[msg.sender].lastMerkleRoot;
     }
 
     // Each week, the proposal authority calls to submit the merkle root for a new airdrop.
