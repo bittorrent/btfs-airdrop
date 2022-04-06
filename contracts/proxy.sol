@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * https://eips.ethereum.org/EIPS/eip-1967[EIP1967], so that it doesn't conflict with the storage layout of the
  * implementation behind the proxy.
  */
-contract AirdropProxy is Proxy, ERC1967Upgrade, Ownable {
+contract BtfsAirdropProxy is Proxy, ERC1967Upgrade, Ownable {
 
 
     /**
