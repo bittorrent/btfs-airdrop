@@ -4,9 +4,14 @@ pragma solidity ^0.8.2;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
+// Open Zeppelin libraries for controlling upgradability and access.
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 
 // MerkleDistributor for airdrop to BTFS staker
-contract BtfsAirdrop {
+contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using SafeMath for uint256;
 
     bytes32 public merkleRoot;
@@ -17,7 +22,7 @@ contract BtfsAirdrop {
     address public proposalAuthority;
     // admin address which approves or rejects a proposed merkle root
     address public reviewAuthority;
-    address public owner;
+//    address public owner;
 
     struct statistics {
         uint256 total;
@@ -36,30 +41,35 @@ contract BtfsAirdrop {
     // which address, last epoch and claimed
     mapping(address => claimedOne) private claimedMap;
 
-    constructor(address _proposalAuthority, address _reviewAuthority) {
+//    constructor(address _proposalAuthority, address _reviewAuthority) {
+//        proposalAuthority = _proposalAuthority;
+//        reviewAuthority = _reviewAuthority;
+//        owner = msg.sender;
+//    }
+
+    function initialize(address _proposalAuthority, address _reviewAuthority) public initializer {
         proposalAuthority = _proposalAuthority;
         reviewAuthority = _reviewAuthority;
-        owner = msg.sender;
+//        owner = msg.sender;
+
+        __Ownable_init();
     }
 
-    //    function init(address _proposalAuthority, address _reviewAuthority) public payable {
-    //        proposalAuthority = _proposalAuthority;
-    //        reviewAuthority = _reviewAuthority;
-    //        owner = msg.sender;
-    //    }
+    ///@dev required by the OZ UUPS module
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // supply information
     receive() external payable {}
 
-    modifier onlyOwner() {
-        require(owner == msg.sender, "only owner");
-        _;
-    }
-
-    function upgradeOwner(address newOwner) external onlyOwner {
-        require(newOwner != owner && newOwner != address(0), "invalid newOwner");
-        owner = newOwner;
-    }
+//    modifier onlyOwner() {
+//        require(owner == msg.sender, "only owner");
+//        _;
+//    }
+//
+//    function upgradeOwner(address newOwner) external onlyOwner {
+//        require(newOwner != owner && newOwner != address(0), "invalid newOwner");
+//        owner = newOwner;
+//    }
 
 
     function setProposalAuthority(address _account) public {

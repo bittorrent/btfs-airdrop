@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
 import "@openzeppelin/contracts/proxy/Proxy.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @dev This contract implements an upgradeable proxy. It is upgradeable because calls are delegated to an
@@ -12,22 +11,17 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * https://eips.ethereum.org/EIPS/eip-1967[EIP1967], so that it doesn't conflict with the storage layout of the
  * implementation behind the proxy.
  */
-contract BtfsAirdropProxy is Proxy, ERC1967Upgrade, Ownable {
-
-
+contract BtfsAirdropProxy is Proxy, ERC1967Upgrade {
     /**
      * @dev Initializes the upgradeable proxy with an initial implementation specified by `_logic`.
      *
      * If `_data` is nonempty, it's used as data in a delegate call to `_logic`. This will typically be an encoded
      * function call, and allows initializating the storage of the proxy like a Solidity constructor.
      */
-    function init(address _logic, bytes memory _data) public payable onlyOwner {
+    constructor(address _logic, bytes memory _data) payable {
         assert(_IMPLEMENTATION_SLOT == bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1));
-
         _upgradeToAndCall(_logic, _data, false);
     }
-
-
     /**
      * @dev Returns the current implementation address.
      */
