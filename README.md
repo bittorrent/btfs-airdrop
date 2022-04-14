@@ -30,6 +30,6 @@ npx hardhat compile
 npx hardhat clean
 npx hardhat test
 npx hardhat node
-node scripts/deploy.js
+node scripts/deployAutoProxy.js
 npx hardhat help
 ```

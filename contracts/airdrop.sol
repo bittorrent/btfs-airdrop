@@ -2,9 +2,8 @@
 
 pragma solidity ^0.8.2;
 
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
 // Open Zeppelin libraries for controlling upgradability and access.
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -22,54 +21,39 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     address public proposalAuthority;
     // admin address which approves or rejects a proposed merkle root
     address public reviewAuthority;
-//    address public owner;
+    // admin address which can withdraw all contract balance
+    address public superAuthority;
 
     struct statistics {
         uint256 total;
         uint256 claimed;
     }
-    // Record the total claim information of all period
-    statistics  public totalClaimInfo;
 
-    event Claimed(bytes32 merkleRootInput, uint256 index, address account, uint256 amount);
-    event SetTotalAmount(bytes32 merkleRoot, uint256 amount);
+    statistics  public totalInfo;
 
-    struct claimedOne {
+    struct claimedUser {
         bytes32 lastMerkleRoot;
         uint256 claimed;
     }
-    // which address, last epoch and claimed
-    mapping(address => claimedOne) private claimedMap;
 
-//    constructor(address _proposalAuthority, address _reviewAuthority) {
-//        proposalAuthority = _proposalAuthority;
-//        reviewAuthority = _reviewAuthority;
-//        owner = msg.sender;
-//    }
+    mapping(address => claimedUser) private claimedUserMap;
 
+    event Claimed(bytes32 merkleRootInput, uint256 index, address account, uint256 amount);
+    event SetTotalAmount(bytes32 merkleRoot, uint256 amount);
+    event WithdrawAllBalance(address account, uint256 amount);
+
+    // initialize
     function initialize(address _proposalAuthority, address _reviewAuthority) public initializer {
         proposalAuthority = _proposalAuthority;
         reviewAuthority = _reviewAuthority;
-//        owner = msg.sender;
-
         __Ownable_init();
     }
 
     ///@dev required by the OZ UUPS module
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-    // supply information
+    // receive()
     receive() external payable {}
-
-//    modifier onlyOwner() {
-//        require(owner == msg.sender, "only owner");
-//        _;
-//    }
-//
-//    function upgradeOwner(address newOwner) external onlyOwner {
-//        require(newOwner != owner && newOwner != address(0), "invalid newOwner");
-//        owner = newOwner;
-//    }
 
 
     function setProposalAuthority(address _account) public {
@@ -82,26 +66,21 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         reviewAuthority = _account;
     }
 
-    // set the total amount of airdrop this period
-    function setTotalAmount(uint256 totalAmount) external onlyOwner {
-        // Accumulate the total info
-        totalClaimInfo.total = totalClaimInfo.total.add(totalAmount);
-
-        emit SetTotalAmount(merkleRoot, totalAmount);
+    function setSuperAuthority(address _account) public {
+        require(msg.sender == superAuthority);
+        superAuthority = _account;
     }
 
-    function getTotalClaimInfo() view external returns (uint256 total, uint256 claimed, bytes32 curMerkleRoot) {
-        total = totalClaimInfo.total;
-        claimed = totalClaimInfo.claimed;
-        curMerkleRoot = merkleRoot;
+    // super authority withdraw all balance.
+    function withdrawAllBalance() external {
+        require(msg.sender == superAuthority, "withdrawAmount: you are not super authority.");
+        payable(msg.sender).transfer(this.balance);
+
+        emit WithdrawAllBalance(msg.sender, this.balance);
     }
 
-    function getUserClaimed() view external returns (uint256 userClaimed, bytes32 lastMerkleRoot) {
-        userClaimed = claimedMap[msg.sender].claimed;
-        lastMerkleRoot = claimedMap[msg.sender].lastMerkleRoot;
-    }
 
-    // Each week, the proposal authority calls to submit the merkle root for a new airdrop.
+    // every day, the proposal authority calls to submit the merkle root for a new airdrop.
     function proposeMerkleRoot(bytes32 _merkleRoot) public {
         require(msg.sender == proposalAuthority);
         require(pendingMerkleRoot == 0x00);
@@ -123,24 +102,48 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         delete pendingMerkleRoot;
     }
 
+    // set the total amount of airdrop this period
+    function setTotalAmount(uint256 totalAmount) public onlyOwner {
+        require(totalAmount > totalInfo.total);
+        totalInfo.total = totalAmount;
+
+        emit SetTotalAmount(merkleRoot, totalAmount);
+    }
+
+
+    function getTotalClaimInfo() view external returns (uint256 total, uint256 claimed, bytes32 curMerkleRoot) {
+        total = totalInfo.total;
+        claimed = totalInfo.claimed;
+        curMerkleRoot = merkleRoot;
+    }
+
+    function getUserClaimed() view external returns (uint256 userClaimed, bytes32 lastMerkleRoot) {
+        userClaimed = claimedUserMap[msg.sender].claimed;
+        lastMerkleRoot = claimedUserMap[msg.sender].lastMerkleRoot;
+    }
+
     function isUserClaimed(bytes32 merkleRootInput) public view returns (bool) {
-        if (claimedMap[msg.sender].lastMerkleRoot == 0) {
+        if (claimedUserMap[msg.sender].lastMerkleRoot == 0x00) {
             return false;
         }
-        if (claimedMap[msg.sender].lastMerkleRoot == merkleRootInput) {
+        if (claimedUserMap[msg.sender].lastMerkleRoot == merkleRootInput) {
             return true;
         }
 
         return false;
     }
 
+    function _setTotalClaimed(uint256 transferAmount) private {
+        totalInfo.claimed = totalInfo.claimed.add(transferAmount);
+    }
+
     function _setUserClaimed(uint256 amount) private {
-        claimedMap[msg.sender].claimed = amount;
-        claimedMap[msg.sender].lastMerkleRoot = merkleRoot;
+        claimedUserMap[msg.sender].claimed = amount;
+        claimedUserMap[msg.sender].lastMerkleRoot = merkleRoot;
     }
 
     function _getUserTransferAmount(uint256 amount) private view returns (uint256) {
-        return amount.sub(claimedMap[msg.sender].claimed);
+        return amount.sub(claimedUserMap[msg.sender].claimed);
     }
 
     function claim(bytes32 merkleRootInput, uint256 index, uint256 amount, bytes32[] calldata merkleProof) external {
@@ -158,10 +161,8 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // transfer to msg.sender
         payable(msg.sender).transfer(transferAmount);
 
-        // Accumulate the total info
-        totalClaimInfo.claimed = totalClaimInfo.claimed.add(transferAmount);
-
-        // Mark it claimed amount
+        // set claimed amount
+        _setTotalClaimed(transferAmount);
         _setUserClaimed(amount);
 
         emit Claimed(merkleRootInput, index, msg.sender, transferAmount);
