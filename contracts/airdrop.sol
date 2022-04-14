@@ -43,9 +43,10 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event WithdrawAllBalance(address account, uint256 amount);
 
     // initialize
-    function initialize(address _proposalAuthority, address _reviewAuthority) public initializer {
+    function initialize(address _proposalAuthority, address _reviewAuthority, address _superAuthor) public initializer {
         proposalAuthority = _proposalAuthority;
         reviewAuthority = _reviewAuthority;
+        superAuthority = _superAuthor;
         __Ownable_init();
     }
 
@@ -74,9 +75,9 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // super authority withdraw all balance.
     function withdrawAllBalance() external {
         require(msg.sender == superAuthority, "withdrawAmount: you are not super authority.");
-        payable(msg.sender).transfer(this.balance);
+        payable(msg.sender).transfer(address(this).balance);
 
-        emit WithdrawAllBalance(msg.sender, this.balance);
+        emit WithdrawAllBalance(msg.sender, address(this).balance);
     }
 
 

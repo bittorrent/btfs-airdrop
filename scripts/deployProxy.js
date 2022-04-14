@@ -5,8 +5,8 @@ const { utils } = ethers;
 const implementContractName = "BtfsAirdrop"
 const proxyContractName = "BtfsAirdropProxy"
 const initializeFuncname = "initialize"
-const initializeParamTypes = ["address", "address"]
-const initializeParamValues =  ["0x22df207EC3C8D18fEDeed87752C5a68E5b4f6FbD", "0x22df207EC3C8D18fEDeed87752C5a68E5b4f6FbD"]
+const initializeParamTypes = ["address", "address", "address"]
+const initializeParamValues =  ["0x22df207EC3C8D18fEDeed87752C5a68E5b4f6FbD", "0x22df207EC3C8D18fEDeed87752C5a68E5b4f6FbD", "0xFBA897eD8146F1f85c3eD4D9D078dA217E16B0A0"]
 
 const proxyConstructorTypes = ["address", "bytes"]
 const abiCoder = new utils.AbiCoder();
