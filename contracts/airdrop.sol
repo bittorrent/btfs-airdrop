@@ -147,26 +147,32 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         return amount.sub(claimedUserMap[msg.sender].claimed);
     }
 
-    function claim(bytes32 merkleRootInput, uint256 index, uint256 amount, bytes32[] calldata merkleProof) external {
-        require(0 < merkleProof.length, "claim: Invalid merkleProof");
-        require(merkleRootInput == merkleRoot, "claim: Invalid merkleRootInput");
-        require(!isUserClaimed(merkleRootInput), "claim: Drop already claimed.");
+    function claim(bytes32 merkleRoot2, uint256 index2, uint256 amount2, bytes32[] calldata merkleProof2,
+        bytes32 merkleRoot1, uint256 index1, uint256 amount1, bytes32[] calldata merkleProof1) external {
+        require(0 < merkleProof1.length, "claim: Invalid merkleProof1");
+        require(0 < merkleProof2.length, "claim: Invalid merkleProof2");
+        require(merkleRoot2 == merkleRoot, "claim: Invalid merkleRoot2");
+        require(!isUserClaimed(merkleRoot2), "claim: Drop already claimed.");
 
-        // Verify the merkle proof.
-        bytes32 node = keccak256(abi.encodePacked(index, msg.sender, amount));
-        require(verify(merkleProof, merkleRoot, node), "claim: Invalid proof.");
+        // Verify the merkle proof1 with msg.sender.
+        bytes32 node1 = keccak256(abi.encodePacked(index1, msg.sender, amount1));
+        require(verify(merkleProof1, merkleRoot1, node1), "claim: Invalid proof1.");
+
+        // Verify the merkle proof with merkleRoot1.
+        bytes32 node2 = keccak256(abi.encodePacked(index2, merkleRoot1, amount2));
+        require(verify(merkleProof2, merkleRoot, node2), "claim: Invalid proof2.");
 
         // get transfer amount
-        uint256 transferAmount = _getUserTransferAmount(amount);
+        uint256 transferAmount = _getUserTransferAmount(amount1);
 
         // transfer to msg.sender
         payable(msg.sender).transfer(transferAmount);
 
         // set claimed amount
         _setTotalClaimed(transferAmount);
-        _setUserClaimed(amount);
+        _setUserClaimed(amount1);
 
-        emit Claimed(merkleRootInput, index, msg.sender, transferAmount);
+        emit Claimed(merkleRoot2, index1, msg.sender, transferAmount);
     }
 
     function verify(bytes32[] memory proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
