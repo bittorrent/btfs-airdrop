@@ -58,17 +58,17 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
 
     function setProposalAuthority(address _account) public {
-        require(msg.sender == proposalAuthority);
+        require(msg.sender == proposalAuthority, "you can not set proposal authority.");
         proposalAuthority = _account;
     }
 
     function setReviewAuthority(address _account) public {
-        require(msg.sender == reviewAuthority);
+        require(msg.sender == reviewAuthority, "you can not set review authority.");
         reviewAuthority = _account;
     }
 
     function setSuperAuthority(address _account) public {
-        require(msg.sender == superAuthority);
+        require(msg.sender == superAuthority, "you can not set super authority.");
         superAuthority = _account;
     }
 
@@ -83,8 +83,8 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // every day, the proposal authority calls to submit the merkle root for a new airdrop.
     function proposeMerkleRoot(bytes32 _merkleRoot) public {
-        require(msg.sender == proposalAuthority);
-        require(pendingMerkleRoot == 0x00);
+        require(msg.sender == proposalAuthority, "msg.sender != proposalAuthority");
+        require(pendingMerkleRoot == 0x00, "pendingMerkleRoot != 0x00");
         require(_merkleRoot != merkleRoot, "proposeMerkleRoot: merkleRoot is already used.");
         //require(block.timestamp >= lastRoot + 86400, "proposeMerkleRoot: it takes 1 day to modify it.");
         pendingMerkleRoot = _merkleRoot;
@@ -93,8 +93,8 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // After validating the correctness of the pending merkle root, the reviewing authority
     // calls to confirm it and the distribution may begin.
     function reviewPendingMerkleRoot(bool _approved) public {
-        require(msg.sender == reviewAuthority);
-        require(pendingMerkleRoot != 0x00);
+        require(msg.sender == reviewAuthority, "msg.sender != reviewAuthority");
+        require(pendingMerkleRoot != 0x00, "pendingMerkleRoot != 0x00");
         if (_approved) {
             merkleRoot = pendingMerkleRoot;
 
@@ -105,7 +105,7 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // set the total amount of airdrop this period
     function setTotalAmount(uint256 totalAmount) public onlyOwner {
-        require(totalAmount > totalInfo.total);
+        require(totalAmount > totalInfo.total, "totalAmount is less than totalInfo.total");
         totalInfo.total = totalAmount;
 
         emit SetTotalAmount(merkleRoot, totalAmount);
@@ -150,7 +150,6 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function claim(bytes32 merkleRoot2, uint256 index2, uint256 amount2, bytes32[] calldata merkleProof2,
         bytes32 merkleRoot1, uint256 index1, uint256 amount1, bytes32[] calldata merkleProof1) external {
         require(0 < merkleProof1.length, "claim: Invalid merkleProof1");
-        require(0 < merkleProof2.length, "claim: Invalid merkleProof2");
         require(merkleRoot2 == merkleRoot, "claim: Invalid merkleRoot2");
         require(!isUserClaimed(merkleRoot2), "claim: Drop already claimed.");
 
