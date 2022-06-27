@@ -1,196 +1,166 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.2;
+pragma solidity ^0.8.4;
 
-// Open Zeppelin libraries for controlling upgradability and access.
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 
 // MerkleDistributor for airdrop to BTFS staker
-contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract BtfsStatus {
     using SafeMath for uint256;
 
-    bytes32 public merkleRoot;
-    bytes32 public pendingMerkleRoot;
-    uint256 public lastTime;
+    // info
+    struct info {
+        uint256 createTime;
+        bytes16 version;
+        uint256 num;
+        uint8[] hearts;
+        uint256 lastNum;
+        uint256 lastTime;
+    }
+    // which peer, last info
+    mapping(string => info) private peerMap;
 
-    // admin address which can propose adding a new merkle root
-    address public proposalAuthority;
-    // admin address which approves or rejects a proposed merkle root
-    address public reviewAuthority;
-    // admin address which can withdraw all contract balance
-    address public superAuthority;
+    // address singnedAddress = "0x4b1d4f6ffcd4aafec6c05e7844f0f0b07985f4ca";
+    address singnedAddress;
 
+    //version
+    bytes16 public currentVersion;
+
+    event versionChanged(bytes16 currentVersion, bytes16 version);
+    event statusReported(string peer, uint256 createTime, bytes16 version, uint256 num, uint256 nowTime, uint8[] hearts);
+
+    //stat
     struct statistics {
-        uint256 total;
-        uint256 claimed;
+        uint64 total;
+        uint64 totalUsers;
     }
-
-    statistics  public totalInfo;
-
-    struct claimedUser {
-        bytes32 lastMerkleRoot;
-        uint256 claimed;
-    }
-
-    mapping(address => claimedUser) private claimedUserMap;
-
-    event Claimed(bytes32 merkleRootInput, uint256 index, address account, uint256 amount);
-    event SetTotalAmount(bytes32 merkleRoot, uint256 amount);
-    event WithdrawAllBalance(address account, uint256 amount);
-
-    // initialize
-    function initialize(address _proposalAuthority, address _reviewAuthority, address _superAuthor) public initializer {
-        proposalAuthority = _proposalAuthority;
-        reviewAuthority = _reviewAuthority;
-        superAuthority = _superAuthor;
-        __Ownable_init();
-    }
-
-    ///@dev required by the OZ UUPS module
-    function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    // receive()
-    receive() external payable {}
+    statistics  public totalStat;
 
 
-    function setProposalAuthority(address _account) public {
-        require(msg.sender == proposalAuthority, "you can not set proposal authority.");
-        proposalAuthority = _account;
-    }
-
-    function setReviewAuthority(address _account) public {
-        require(msg.sender == reviewAuthority, "you can not set review authority.");
-        reviewAuthority = _account;
-    }
-
-    function setSuperAuthority(address _account) public {
-        require(msg.sender == superAuthority, "you can not set super authority.");
-        superAuthority = _account;
-    }
-
-    // super authority withdraw all balance.
-    function withdrawAllBalance() external {
-        require(msg.sender == superAuthority, "withdrawAmount: you are not super authority.");
-        payable(msg.sender).transfer(address(this).balance);
-
-        emit WithdrawAllBalance(msg.sender, address(this).balance);
+    // owner
+    address public owner;
+    constructor() {
+        owner = msg.sender;
     }
 
 
-    // every day, the proposal authority calls to submit the merkle root for a new airdrop.
-    function proposeMerkleRoot(bytes32 _merkleRoot) public {
-        require(msg.sender == proposalAuthority, "msg.sender != proposalAuthority");
-        require(pendingMerkleRoot == 0x00, "pendingMerkleRoot != 0x00");
-        require(_merkleRoot != merkleRoot, "proposeMerkleRoot: merkleRoot is already used.");
-        //require(block.timestamp >= lastRoot + 86400, "proposeMerkleRoot: it takes 1 day to modify it.");
-        pendingMerkleRoot = _merkleRoot;
-    }
+    // set current version
+    // only owner do it
+    function setCurrentVersion(bytes16 ver) external {
+        bytes16 lastVersion = currentVersion;
 
-    // After validating the correctness of the pending merkle root, the reviewing authority
-    // calls to confirm it and the distribution may begin.
-    function reviewPendingMerkleRoot(bool _approved) public {
-        require(msg.sender == reviewAuthority, "msg.sender != reviewAuthority");
-        require(pendingMerkleRoot != 0x00, "pendingMerkleRoot != 0x00");
-        if (_approved) {
-            merkleRoot = pendingMerkleRoot;
-
-            lastTime = block.timestamp / 86400 * 86400;
-        }
-        delete pendingMerkleRoot;
-    }
-
-    // set the total amount of airdrop this period
-    function setTotalAmount(uint256 totalAmount) public onlyOwner {
-        require(totalAmount > totalInfo.total, "totalAmount is less than totalInfo.total");
-        totalInfo.total = totalAmount;
-
-        emit SetTotalAmount(merkleRoot, totalAmount);
+        currentVersion = ver;
+        emit versionChanged(lastVersion, currentVersion);
     }
 
 
-    function getTotalClaimInfo() view external returns (uint256 total, uint256 claimed, bytes32 curMerkleRoot) {
-        total = totalInfo.total;
-        claimed = totalInfo.claimed;
-        curMerkleRoot = merkleRoot;
-    }
-
-    function getUserClaimed() view external returns (uint256 userClaimed, bytes32 lastMerkleRoot) {
-        userClaimed = claimedUserMap[msg.sender].claimed;
-        lastMerkleRoot = claimedUserMap[msg.sender].lastMerkleRoot;
-    }
-
-    function isUserClaimed(bytes32 merkleRootInput) public view returns (bool) {
-        if (claimedUserMap[msg.sender].lastMerkleRoot == 0x00) {
-            return false;
-        }
-        if (claimedUserMap[msg.sender].lastMerkleRoot == merkleRootInput) {
-            return true;
+    function setHeart(string memory peer, uint256 num, uint256 nowTime) internal {
+        uint256 diffTime = nowTime - peerMap[peer].lastTime;
+        if (diffTime > 30 * 86400) {
+            diffTime = 30 * 86400;
         }
 
-        return false;
+        uint256 diffNum = num - peerMap[peer].lastNum;
+        if (diffNum > 30) {
+            diffNum = 30;
+        }
+
+        uint times = diffTime/86400;
+        uint256 balance = diffNum;
+        for (uint256 i = 1; i < times; i++) {
+            uint indexTmp = (nowTime-i*86400)%86400%30;
+            peerMap[peer].hearts[indexTmp] = uint8(diffNum/times);
+
+            balance = balance - diffNum/times;
+        }
+
+        uint index = nowTime%86400%30;
+        peerMap[peer].hearts[index] = uint8(balance);
     }
 
-    function _setTotalClaimed(uint256 transferAmount) private {
-        totalInfo.claimed = totalInfo.claimed.add(transferAmount);
-    }
+    function reportStatus(string memory peer, uint256 createTime, bytes16 version, uint256 num, uint256 nowTime, bytes memory signed) external {
+        require(0 < createTime, "reportStatus: Invalid createTime");
+        require(0 < version.length, "reportStatus: Invalid version.length");
+        require(0 < num, "reportStatus: Invalid num");
+        require(0 < signed.length, "reportStatus: Invalid signed");
 
-    function _setUserClaimed(uint256 amount) private {
-        claimedUserMap[msg.sender].claimed = amount;
-        claimedUserMap[msg.sender].lastMerkleRoot = merkleRoot;
-    }
+        require(peerMap[peer].lastNum <= num, "reportStatus: Invalid lastNum<num");
 
-    function _getUserTransferAmount(uint256 amount) private view returns (uint256) {
-        return amount.sub(claimedUserMap[msg.sender].claimed);
-    }
+        // Verify the signed with msg.sender.
+        bytes32 hash = keccak256(abi.encodePacked(peer, createTime, version, num, nowTime));
+        require(verify(hash, signed), "reportStatus: Invalid signed address.");
 
-    function claim(bytes32 merkleRoot2, uint256 index2, uint256 amount2, bytes32[] calldata merkleProof2,
-        bytes32 merkleRoot1, uint256 index1, uint256 amount1, bytes32[] calldata merkleProof1) external {
-        require(0 < merkleProof1.length, "claim: Invalid merkleProof1");
-        require(merkleRoot2 == merkleRoot, "claim: Invalid merkleRoot2");
-        require(!isUserClaimed(merkleRoot2), "claim: Drop already claimed.");
+        uint index = nowTime%86400%30;
+        peerMap[peer].createTime = createTime;
+        peerMap[peer].version = version;
+        peerMap[peer].lastNum = num;
 
-        // Verify the merkle proof1 with msg.sender.
-        bytes32 node1 = keccak256(abi.encodePacked(index1, msg.sender, amount1));
-        require(verify(merkleProof1, merkleRoot1, node1), "claim: Invalid proof1.");
-
-        // Verify the merkle proof with merkleRoot1.
-        bytes32 node2 = keccak256(abi.encodePacked(index2, merkleRoot1, amount2));
-        require(verify(merkleProof2, merkleRoot, node2), "claim: Invalid proof2.");
-
-        // get transfer amount
-        uint256 transferAmount = _getUserTransferAmount(amount1);
-
-        // transfer to msg.sender
-        payable(msg.sender).transfer(transferAmount);
-
-        // set claimed amount
-        _setTotalClaimed(transferAmount);
-        _setUserClaimed(amount1);
-
-        emit Claimed(merkleRoot2, index1, msg.sender, transferAmount);
-    }
-
-    function verify(bytes32[] memory proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
-        bytes32 computedHash = leaf;
-
-        for (uint256 i = 0; i < proof.length; i++) {
-            bytes32 proofElement = proof[i];
-
-            if (computedHash <= proofElement) {
-                // Hash(current computed hash + current element of the proof)
-                computedHash = keccak256(abi.encodePacked(computedHash, proofElement));
-            } else {
-                // Hash(current element of the proof + current computed hash)
-                computedHash = keccak256(abi.encodePacked(proofElement, computedHash));
+        if (peerMap[peer].num == 0) {
+            if (num > 24) {
+                num = 24;
             }
+            peerMap[peer].hearts[index] = uint8(num);
+            totalStat.totalUsers += 1;
+        } else {
+            setHeart(peer, num, nowTime);
         }
 
-        // Check if the computed hash (root) is equal to the provided root
-        return computedHash == root;
+        // set total
+        totalStat.total += 1;
+
+        emit statusReported(
+            peer,
+            createTime,
+            version,
+            num,
+            nowTime,
+            peerMap[peer].hearts
+        );
     }
 
+    function verify(bytes32 hash, bytes memory signed) internal view returns (bool) {
+        return recoverSigner(hash, signed);
+    }
+
+    function recoverSigner(bytes32 message, bytes memory sig)
+    internal
+    view
+    returns (bool)
+    {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+
+        (v, r, s) = splitSignature(sig);
+
+        return ecrecover(message, v, r, s) == address(singnedAddress);
+    }
+
+    function splitSignature(bytes memory sig)
+    internal
+    pure
+    returns (
+        uint8,
+        bytes32,
+        bytes32
+    )
+    {
+        require(sig.length == 65);
+
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
+        assembly {
+        // first 32 bytes, after the length prefix
+            r := mload(add(sig, 32))
+        // second 32 bytes
+            s := mload(add(sig, 64))
+        // final byte (first byte of the next 32 bytes)
+            v := byte(0, mload(add(sig, 96)))
+        }
+
+        return (v, r, s);
+    }
 }
