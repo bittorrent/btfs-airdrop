@@ -163,6 +163,7 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // get transfer amount
         uint256 transferAmount = _getUserTransferAmount(amount1);
+        require(0 < transferAmount, "claim: transfer amount should be greater than 0.");
 
         // transfer to msg.sender
         payable(msg.sender).transfer(transferAmount);
