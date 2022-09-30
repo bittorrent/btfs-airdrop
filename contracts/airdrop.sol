@@ -35,8 +35,8 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         bytes32 lastMerkleRoot;
         uint256 claimed;
     }
-
     mapping(address => claimedUser) private claimedUserMap;
+    uint8 public claimAvailable;
 
     event Claimed(bytes32 merkleRootInput, uint256 index, address account, uint256 amount);
     event SetTotalAmount(bytes32 merkleRoot, uint256 amount);
@@ -61,12 +61,10 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(msg.sender == proposalAuthority, "you can not set proposal authority.");
         proposalAuthority = _account;
     }
-
     function setReviewAuthority(address _account) public {
         require(msg.sender == reviewAuthority, "you can not set review authority.");
         reviewAuthority = _account;
     }
-
     function setSuperAuthority(address _account) public {
         require(msg.sender == superAuthority, "you can not set super authority.");
         superAuthority = _account;
@@ -80,6 +78,17 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit WithdrawAllBalance(msg.sender, address(this).balance);
     }
 
+    function setClaimAvailable() public {
+        require(msg.sender == reviewAuthority, "you can not set claim available.");
+        claimAvailable = 1;
+    }
+    function setClaimNotAvailable() public {
+        require(msg.sender == reviewAuthority, "you can not set claim available.");
+        claimAvailable = 0;
+    }
+    function getClaimAvailable() view external returns (uint8 claimAvailable) {
+        return claimAvailable;
+    }
 
     // every day, the proposal authority calls to submit the merkle root for a new airdrop.
     function proposeMerkleRoot(bytes32 _merkleRoot) public {
@@ -149,6 +158,7 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function claim(bytes32 merkleRoot2, uint256 index2, uint256 amount2, bytes32[] calldata merkleProof2,
         bytes32 merkleRoot1, uint256 index1, uint256 amount1, bytes32[] calldata merkleProof1) external {
+        require(0 < claimAvailable, "claim: the current status is not available.");
         require(0 < merkleProof1.length, "claim: Invalid merkleProof1");
         require(merkleRoot2 == merkleRoot, "claim: Invalid merkleRoot2");
         require(!isUserClaimed(merkleRoot2), "claim: Drop already claimed.");
