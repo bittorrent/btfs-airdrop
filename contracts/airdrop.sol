@@ -86,7 +86,7 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(msg.sender == reviewAuthority, "you can not set claim available.");
         claimAvailable = 0;
     }
-    function getClaimAvailable() view external returns (uint8 claimAvailable) {
+    function getClaimAvailable() view public returns(uint8) {
         return claimAvailable;
     }
 
