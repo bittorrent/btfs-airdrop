@@ -15,6 +15,10 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     bytes32 public merkleRoot;
     bytes32 public pendingMerkleRoot;
+    uint256 public userMaxAmount;
+    uint256 public pendingUserMaxAmount;
+    uint256 public increaseTotalAmount;
+    uint256 public pendingIncreaseTotalAmount;
     uint256 public lastTime;
 
     // admin address which can propose adding a new merkle root
@@ -40,6 +44,7 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     event Claimed(bytes32 merkleRootInput, uint256 index, address account, uint256 amount);
     event SetTotalAmount(bytes32 merkleRoot, uint256 amount);
+    event AddTotalAmount(bytes32 merkleRoot, uint256 increateAmount);
     event WithdrawAllBalance(address account, uint256 amount);
 
     // initialize
@@ -91,12 +96,21 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // every day, the proposal authority calls to submit the merkle root for a new airdrop.
-    function proposeMerkleRoot(bytes32 _merkleRoot) public {
-        require(msg.sender == proposalAuthority, "msg.sender != proposalAuthority");
-        require(pendingMerkleRoot == 0x00, "pendingMerkleRoot != 0x00");
+    function proposeMerkleRoot(bytes32 _merkleRoot, uint256 _userMaxAmount, uint256 _increaseTotalAmount) public {
+        require(msg.sender == proposalAuthority, "proposeMerkleRoot: msg.sender != proposalAuthority");
+        require(_merkleRoot != 0x00, "proposeMerkleRoot: _merkleRoot == 0x00");
+        require(pendingMerkleRoot == 0x00, "proposeMerkleRoot: pendingMerkleRoot != 0x00");
         require(_merkleRoot != merkleRoot, "proposeMerkleRoot: merkleRoot is already used.");
         //require(block.timestamp >= lastRoot + 86400, "proposeMerkleRoot: it takes 1 day to modify it.");
         pendingMerkleRoot = _merkleRoot;
+
+        require(_userMaxAmount > 0, "proposeMerkleRoot: _userMaxAmount <= 0");
+        require(_userMaxAmount != userMaxAmount, "proposeMerkleRoot: userMaxAmount is already set.");
+        pendingUserMaxAmount = _userMaxAmount;
+
+        require(_increaseTotalAmount > 0, "proposeMerkleRoot: _increaseTotalAmount <= 0");
+        require(_increaseTotalAmount != increaseTotalAmount, "proposeMerkleRoot: increaseTotalAmount is already set.");
+        pendingIncreaseTotalAmount = _increaseTotalAmount;
     }
 
     // After validating the correctness of the pending merkle root, the reviewing authority
@@ -104,8 +118,15 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function reviewPendingMerkleRoot(bool _approved) public {
         require(msg.sender == reviewAuthority, "msg.sender != reviewAuthority");
         require(pendingMerkleRoot != 0x00, "pendingMerkleRoot != 0x00");
+        require(pendingUserMaxAmount == 0, "pendingUserMaxAmount != 0");
+
         if (_approved) {
             merkleRoot = pendingMerkleRoot;
+            userMaxAmount = pendingUserMaxAmount;
+
+            increaseTotalAmount = pendingIncreaseTotalAmount;
+            totalInfo.total += increaseTotalAmount;
+            emit AddTotalAmount(merkleRoot, increaseTotalAmount);
 
             lastTime = block.timestamp / 86400 * 86400;
         }
@@ -119,7 +140,6 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         emit SetTotalAmount(merkleRoot, totalAmount);
     }
-
 
     function getTotalClaimInfo() view external returns (uint256 total, uint256 claimed, bytes32 curMerkleRoot) {
         total = totalInfo.total;
@@ -159,6 +179,8 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function claim(bytes32 merkleRoot2, uint256 index2, uint256 amount2, bytes32[] calldata merkleProof2,
         bytes32 merkleRoot1, uint256 index1, uint256 amount1, bytes32[] calldata merkleProof1) external {
         require(0 < claimAvailable, "claim: the current status is not available.");
+        require(amount1 <= userMaxAmount, "claim: amount1 should be less than userMaxAmount.");
+
         require(0 < merkleProof1.length, "claim: Invalid merkleProof1");
         require(merkleRoot2 == merkleRoot, "claim: Invalid merkleRoot2");
         require(!isUserClaimed(merkleRoot2), "claim: Drop already claimed.");
