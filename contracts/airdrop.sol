@@ -105,11 +105,10 @@ contract BtfsAirdrop is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         pendingMerkleRoot = _merkleRoot;
 
         require(_userMaxAmount > 0, "proposeMerkleRoot: _userMaxAmount <= 0");
-        require(_userMaxAmount != userMaxAmount, "proposeMerkleRoot: userMaxAmount is already set.");
+        require(_userMaxAmount >= userMaxAmount, "proposeMerkleRoot: userMaxAmount is less than old.");
         pendingUserMaxAmount = _userMaxAmount;
 
         require(_increaseTotalAmount > 0, "proposeMerkleRoot: _increaseTotalAmount <= 0");
-        require(_increaseTotalAmount != increaseTotalAmount, "proposeMerkleRoot: increaseTotalAmount is already set.");
         pendingIncreaseTotalAmount = _increaseTotalAmount;
     }
 
