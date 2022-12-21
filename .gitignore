@@ -11,3 +11,4 @@ tmp/
 .openzeppelin/
 
 package-lock.json
+.env

@@ -28,12 +28,22 @@ module.exports = {
       url: `https://kovan.infura.io/v3/${process.env.INFURA_API_KEY}`,
       accounts: [process.env.PRIVATE_KEY],
     },
-    bttc: {
+    bttc_donau: {
       url: 'https://pre-rpc.bt.io/',
       accounts: [process.env.PRIVATE_KEY],
     }
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+    customChains: [
+      {
+        network: `bttc_donau`,
+        chainId: 1029,
+        urls: {
+          apiURL: `https://api-testnet.bttcscan.com/api`,
+          browserURL: `https://testnet.bttcscan.com`
+        }
+      }
+      ]
   },
 };
